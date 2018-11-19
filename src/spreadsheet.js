@@ -11,19 +11,15 @@ function appendExpenseAsync(sheetTitle, sum, category, description) {
     }
 
     return getLastFilledRowNumberAsync(sheetTitle).then(num => {
-        return new Promise((resolve, reject) => {
-            getSheetByTitleAsync(sheetTitle).then(sheet => resolve({ num, sheet }))
-        });
+        return getSheetByTitleAsync(sheetTitle).then(sheet => ({ num, sheet }));
     }).then(({num, sheet}) => {
-        return new Promise((resolve, reject) => {
-            getCellsAsync(sheet.id, {
-                "min-row": num + 1,
-                "max-row": num + 1,
-                "min-col": 1,
-                "max-col": 4,
-                "return-empty": true
-            }).then(cells => resolve({ cells, sheet }));
-        });
+        return getCellsAsync(sheet.id, {
+            "min-row": num + 1,
+            "max-row": num + 1,
+            "min-col": 1,
+            "max-col": 4,
+            "return-empty": true
+        }).then(cells => ({ cells, sheet }));        
     }).then(({cells, sheet}) => {        
         cells[0].value = category;
         cells[1].value = sum;
@@ -68,16 +64,18 @@ function getLastFilledRowNumberAsync(sheetTitle) {
 
 
 function getCellsAsync(sheetId, options) {    
-    if (!sheetId) throw new Error("Invalid sheet id provided");    
-    return new Promise((resolve, reject) => {
-        document.getCells(sheetId, options, (err, cells) => {
-            if (err) {
-                return reject(err);
-            } else {
-                return resolve(cells)
-            }
-        });
-    })
+    if (!sheetId) throw new Error("Invalid sheet id provided");  
+    return authorizeAsync().then(() => {
+        return new Promise((resolve, reject) => {
+            document.getCells(sheetId, options, (err, cells) => {
+                if (err) {
+                    return reject(err);
+                } else {
+                    return resolve(cells)
+                }
+            });
+        })
+    });
 }
 
 
@@ -125,6 +123,7 @@ function getSheetsAsync() {
 }
 
 function getSheetByTitleAsync(title) {
+    if (!title) throw new Error("Invalid sheet title provided");
     return getSheetsAsync().then(sheets => {
         var sheet = sheets.find(w => w.title === title);
         if (sheet === undefined) {
