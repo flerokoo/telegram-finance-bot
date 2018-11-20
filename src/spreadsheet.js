@@ -1,10 +1,24 @@
 var GoogleSpreadsheet = require("google-spreadsheet");
 var path = require("path");
 
+var operationCategoryCol = 1,
+    operationAmountCol = 2,
+    operationCurrencyCol = 3,
+    operationDescriptionCol = 4,
+    operationDateCol = 5,
+    operationsStartRow = 1;
+
+var settingsCategoriesCol = 1,
+    settingsCategoriesMultiplierCol = settingsCategoriesCol + 1,
+    settingsCategoryStartRow = 1,
+    settingsCurrencyNameCol = 3,
+    settingsCurrencyExchangeRateCol = settingsCurrencyNameCol + 1,
+    settingsCurrencyStartRow = 2;
+
 var creds = require(path.join(process.cwd(), process.env.CREDENTIALS_PATH));  
 var document = new GoogleSpreadsheet(process.env.SPREADSHEET_KEY);
 
-function appendExpenseAsync(sheetTitle, sum, category, description) {
+function appendEntryAsync(sheetTitle, sum, currency, category, description) {
     
     if (typeof description !== 'string' || description.trim().length === 0) {
         description = undefined;
@@ -21,12 +35,12 @@ function appendExpenseAsync(sheetTitle, sum, category, description) {
             "return-empty": true
         }).then(cells => ({ cells, sheet }));        
     }).then(({cells, sheet}) => {        
-        cells[0].value = category;
-        cells[1].value = sum;
-        cells[3].value = new Date().toUTCString();
+        cells[operationCategoryCol].value = category;
+        cells[operationAmountCol].value = sum;
+        cells[operationDateCol].value = new Date().toUTCString();
 
         if (description !== undefined) {
-            cells[2].value = description;
+            cells[operationDescriptionCol].value = description;
         }
 
         return new Promise((resolve, reject) => {
@@ -44,10 +58,10 @@ function appendExpenseAsync(sheetTitle, sum, category, description) {
 function getLastFilledRowNumberAsync(sheetTitle) {
     return getSheetByTitleAsync(sheetTitle).then(sheet => {
         return getCellsAsync(sheet.id, {
-            "min-row": 1,
+            "min-row": operationsStartRow,
             "max-row": sheet.rowCount,
-            "min-col": 1,
-            "max-col": 1,
+            "min-col": operationCategoryCol,
+            "max-col": operationCategoryCol,
             "return-empty": true
         });
     }).then(cells => {
@@ -140,14 +154,14 @@ function getCategoriesAsync() {
     if (cachedCategories !== null) {
         return Promise.resolve(cachedCategories)
     } else {
-        return getSheetByTitleAsync(process.env.CATEGORIES_SHEET_TITLE).then(sheet => {
+        return getSheetByTitleAsync(process.env.SETTINGS_SHEET_TITLE).then(sheet => {
             return sheet;
         }).then(sheet => {
             return getCellsAsync(sheet.id, {
-                "min-row": 1,
+                "min-row": settingsCategoryStartRow,
                 "max-row": sheet.rowCount,
-                "min-col": 1,
-                "max-col": 1,
+                "min-col": settingsCategoriesCol,
+                "max-col": settingsCategoriesCol,
                 "return-empty": false
             })
         }).then(cells => {
@@ -170,10 +184,63 @@ function getCategoriesAsyncGroupedBy(n) {
     
 }
 
+
+var cachedCurrencyData = null;
+function getCurrencyDataAsync() {
+    if (cachedCurrencyData !== null) {
+        return Promise.resolve(cachedCurrencyData);
+    } else {
+        return getSheetByTitleAsync(process.env.SETTINGS_SHEET_TITLE).then(sheet => {
+            return sheet;
+        }).then(sheet => {
+            return getCellsAsync(sheet.id, {
+                "min-row": settingsCurrencyStartRow,
+                "max-row": sheet.rowCount,
+                "min-col": settingsCurrencyNameCol,
+                "max-col": settingsCurrencyExchangeRateCol,
+                "return-empty": false
+            })
+        }).then(cells => {            
+            // check if got pairs currency-exchangeRate
+            if (cells.length % 2 !== 0) {
+                throw new Error("Wrong currency data!");
+            }
+
+            var currencyData = {
+                names: [],
+                rates: {}
+            };
+
+            for (var i = 0; i < cells.length / 2; i++) {
+                var name = cells[i];
+                var rate = parseFloat(cells[i + 1]);
+                
+                if (typeof rate !== 'number' || isNaN(rate)) {
+                    throw new Error(`Wrong exchange rate for currency ${name}: ${rate}`);    
+                }
+
+                currencyData.names.push(name);
+                currencyData.rates[name] = rate;
+            }
+
+            return (cachedCurrencyData = currencyData);
+        })   
+    }
+}
+
+function getCurrencyNamesAsync() {
+    return getCurrencyDataAsync().then(data => data.names);
+}
+
+function getCurrencyExchangeRatesAsync() {
+    return getCurrencyDataAsync().then(data => data.rates);
+}
+
 function fillCacheValues() {
     return Promise.all([
         getCategoriesAsync(),
-        getSheetsAsync()
+        getSheetsAsync(),
+        getCurrencyDataAsync()
     ])
 }
 
@@ -181,12 +248,16 @@ function clearCachedValues() {
     cachedCategories = null;
     cachedSheets = null;
     cachedInfo = null;
+    cachedCurrencies = null
 }
 
 module.exports = {
     getCategoriesAsync,
     getCategoriesAsyncGroupedBy,
-    appendExpenseAsync,
+    appendEntryAsync,
     clearCachedValues,
-    fillCacheValues
+    fillCacheValues,
+    getCurrencyDataAsync,
+    getCurrencyNamesAsync,
+    getCurrencyExchangeRatesAsync
 };

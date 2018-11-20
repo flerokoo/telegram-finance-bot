@@ -27,7 +27,7 @@ The bot requires next environment variables:
 * `SPREADSHEET_KEY` — long set of symbols in URL of your spreadsheet
 * `CREDENTIALS_PATH` — path to credentials relative to workdir (instructions how to get it [here](https://www.npmjs.com/package/google-spreadsheet))
 * `TARGET_SHEET_TITLE` — name of the sheet, where your current expenses go
-* `CATEGORIES_SHEET_TITLE` — name of the sheet, in first column of which categories are stored
+* `SETTINGS_SHEET_TITLE` — name of the sheet, in first column of which categories are stored
 
 Example of a Dockerfile: 
 ```docker
@@ -42,7 +42,18 @@ ENV TELEGRAM_USER_ID your_user_id
 ENV SPREADSHEET_KEY spreadsheet_key
 ENV CREDENTIALS_PATH credentials_path
 ENV TARGET_SHEET_TITLE name
-ENV CATEGORIES_SHEET_TITLE name
+ENV SETTINGS_SHEET_TITLE name
 
 CMD ["node", "src/index"]
 ```
+
+
+TODO
+
+* Separate scenes to different files
+* Update cached values every n minutes
+    * Add updating scene that will forbid entering any values, while bot is updating cached values
+* Migrate to multicurrency spreadsheet 
+    * Get currency exchange rates from sheet (also, cache it as sheets are cached)
+    * Add scene with currency selection (after expense amount scene)
+    * Add possibility to exchange currencies by current exchange
